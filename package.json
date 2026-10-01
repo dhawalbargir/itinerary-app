@@ -13,7 +13,6 @@
     "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.131.0",
     "@neondatabase/serverless": "^1.1.0",
     "@vercel/blob": "^2.8.0",
     "drizzle-orm": "^0.45.3",
@@ -22,6 +21,7 @@
     "lucide-react": "^1.49.0",
     "luxon": "^3.7.2",
     "next": "15.5.27",
+    "openai": "^7.25.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zod": "^4.3.3"

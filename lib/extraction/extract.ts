@@ -1,63 +1,65 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { Extraction, extractionJsonSchema, type ExtractionT } from "./schema";
 import { SYSTEM_PROMPT, USER_PROMPT } from "./prompt";
 
 const TOOL = "record_itinerary_items";
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
-type ImageType = (typeof IMAGE_TYPES)[number];
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 export class ExtractionError extends Error {}
 
 function client() {
-  if (!process.env.ANTHROPIC_API_KEY) throw new ExtractionError("ANTHROPIC_API_KEY is not set.");
-  return new Anthropic({ maxRetries: 3 }); // retries 429/5xx with backoff
+  if (!process.env.OPENAI_API_KEY) throw new ExtractionError("OPENAI_API_KEY is not set.");
+  return new OpenAI({ maxRetries: 3 }); // retries 429/5xx with backoff
 }
 
+/** Reads one image or PDF with an OpenAI vision model and returns validated items (EXT-1, EXT-5). */
 export async function extractFromFile(bytes: ArrayBuffer, mimeType: string): Promise<{ data: ExtractionT; raw: unknown }> {
-  const data = Buffer.from(bytes).toString("base64");
-  let fileBlock: Anthropic.ContentBlockParam;
+  const b64 = Buffer.from(bytes).toString("base64");
+  let filePart: OpenAI.Responses.ResponseInputContent;
   if (mimeType === "application/pdf") {
-    fileBlock = { type: "document", source: { type: "base64", media_type: "application/pdf", data } };
-  } else if ((IMAGE_TYPES as readonly string[]).includes(mimeType)) {
-    fileBlock = { type: "image", source: { type: "base64", media_type: mimeType as ImageType, data } };
+    filePart = { type: "input_file", filename: "document.pdf", file_data: `data:application/pdf;base64,${b64}` };
+  } else if (IMAGE_TYPES.includes(mimeType)) {
+    filePart = { type: "input_image", image_url: `data:${mimeType};base64,${b64}`, detail: "high" };
   } else {
     throw new ExtractionError(`Unsupported file type ${mimeType}. Upload a JPG, PNG, WebP or PDF.`);
   }
 
-  const messages: Anthropic.MessageParam[] = [
-    { role: "user", content: [fileBlock, { type: "text", text: USER_PROMPT }] },
-  ];
-
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await client().messages.create({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+    const retryNote = lastError
+      ? `\n\nYour previous answer failed validation: ${lastError}. Call the tool again with corrected input.`
+      : "";
+    const res = await client().responses.create({
+      model: process.env.OPENAI_MODEL || "gpt-5-mini",
+      instructions: SYSTEM_PROMPT,
+      input: [{ role: "user", content: [filePart, { type: "input_text", text: USER_PROMPT + retryNote }] }],
       tools: [{
+        type: "function",
         name: TOOL,
         description: "Record every itinerary item found in the document.",
-        input_schema: extractionJsonSchema() as Anthropic.Tool.InputSchema,
+        parameters: extractionJsonSchema(),
+        strict: false,
       }],
-      tool_choice: { type: "tool", name: TOOL },
-      messages,
+      tool_choice: { type: "function", name: TOOL },
     });
 
-    const call = res.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === TOOL);
+    const call = res.output.find(
+      (o): o is OpenAI.Responses.ResponseFunctionToolCall => o.type === "function_call" && o.name === TOOL,
+    );
     if (!call) {
-      lastError = "The model did not return structured data.";
+      lastError = "the model did not return structured data";
       continue;
     }
-    const parsed = Extraction.safeParse(call.input);
-    if (parsed.success) return { data: parsed.data, raw: call.input };
-
-    // EXT validation retry: show the model its own output and the error once.
+    let input: unknown;
+    try {
+      input = JSON.parse(call.arguments);
+    } catch {
+      lastError = "the tool arguments were not valid JSON";
+      continue;
+    }
+    const parsed = Extraction.safeParse(input);
+    if (parsed.success) return { data: parsed.data, raw: input };
     lastError = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-    messages.push(
-      { role: "assistant", content: res.content },
-      { role: "user", content: [{ type: "tool_result", tool_use_id: call.id, is_error: true,
-        content: `Validation failed: ${lastError}. Call the tool again with corrected input.` }] },
-    );
   }
   throw new ExtractionError(`Could not read this document: ${lastError}`);
 }

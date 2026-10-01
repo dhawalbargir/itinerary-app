@@ -44,7 +44,7 @@ export const Extraction = z.object({
 export type ExtractedItemT = z.infer<typeof ExtractedItem>;
 export type ExtractionT = z.infer<typeof Extraction>;
 
-/** JSON schema for the Anthropic tool definition. */
+/** JSON schema for the OpenAI function definition. */
 export function extractionJsonSchema() {
   const schema = z.toJSONSchema(Extraction) as Record<string, unknown>;
   delete schema.$schema;
