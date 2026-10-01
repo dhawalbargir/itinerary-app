@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ground: #e8edf0;
+  --color-surface: #ffffff;
+  --color-ink: #15222c;
+  --color-muted: #586874;
+  --color-line: #cfd8de;
+  --color-sign: #ffc72c;      /* airport signage yellow: the one accent */
+  --color-sign-ink: #15222c;
+  --color-teal: #0b6a72;
+  --color-warn: #a35f00;
+  --color-warn-bg: #fff3dc;
+  --color-bad: #b3261e;
+  --color-bad-bg: #fde8e6;
+  --color-good: #2a7449;
+  --color-good-bg: #e3f3e8;
+  --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ground: #0f171d;
+    --color-surface: #18232b;
+    --color-ink: #e6edf1;
+    --color-muted: #93a3ae;
+    --color-line: #2b3a45;
+    --color-teal: #5cc3cb;
+    --color-warn: #f0b354;
+    --color-warn-bg: #3a2c12;
+    --color-bad: #ff8a80;
+    --color-bad-bg: #3d1d1b;
+    --color-good: #7fd39c;
+    --color-good-bg: #173324;
+  }
+}
+
+html { background: var(--color-ground); color: var(--color-ink); }
+body { font-family: var(--font-sans); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+
+/* Departure-board voice: expanded width for times, codes and the big headings. */
+.wide { font-stretch: 125%; font-variation-settings: "wdth" 125; letter-spacing: 0.01em; }
+
+:focus-visible { outline: 3px solid var(--color-sign); outline-offset: 2px; border-radius: 6px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 0.4rem; height: 2.5rem; padding: 0 0.9rem;
+  border-radius: 0.6rem; font-weight: 600; font-size: 0.925rem; border: 1px solid var(--color-line);
+  background: var(--color-surface); color: var(--color-ink); cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--color-muted); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--color-sign); color: var(--color-sign-ink); border-color: transparent; }
+.btn-primary:hover { filter: brightness(0.96); border-color: transparent; }
+.btn-quiet { background: transparent; border-color: transparent; }
+.btn-quiet:hover { background: color-mix(in srgb, var(--color-ink) 7%, transparent); }
+.btn-danger { color: var(--color-bad); }
+
+.field { display: grid; gap: 0.3rem; }
+.field > span { font-size: 0.8rem; color: var(--color-muted); font-weight: 500; }
+.input {
+  height: 2.5rem; padding: 0 0.7rem; border-radius: 0.5rem; border: 1px solid var(--color-line);
+  background: var(--color-surface); color: var(--color-ink); font: inherit; width: 100%;
+}
+textarea.input { height: auto; padding: 0.5rem 0.7rem; }
+.input.flagged { border-color: var(--color-warn); background: var(--color-warn-bg); }
+
+/* Boarding-pass stub: perforation between the route and the details. */
+.perf { border-top: 2px dashed var(--color-line); position: relative; }
+.perf::before, .perf::after {
+  content: ""; position: absolute; top: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-ground);
+}
+.perf::before { left: -9px; }
+.perf::after { right: -9px; }
+
+@keyframes arrive { from { opacity: 0; transform: translateY(-6px); background: var(--color-sign); } to { opacity: 1; transform: none; } }
+.arrive { animation: arrive 700ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .arrive { animation: none; } }
+
+@media print {
+  .no-print { display: none !important; }
+  html, body { background: #fff; color: #000; }
+  .print-break { break-inside: avoid; }
+}
