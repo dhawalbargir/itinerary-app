@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LoaderCircle } from "lucide-react";
+import { KeyRound } from "lucide-react";
+import { Logo, ThemePicker } from "@/components/AppNav";
 
 function LoginForm() {
   const params = useSearchParams();
@@ -24,14 +25,19 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="w-full max-w-sm space-y-4">
-      <label className="field">
-        <span>Password</span>
-        <input className="input" type="password" autoFocus autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      </label>
-      {error && <p className="text-sm font-medium text-bad" role="alert">{error}</p>}
-      <button className="btn btn-primary w-full justify-center" disabled={busy || !password}>
-        {busy && <LoaderCircle className="size-4 animate-spin" />} Sign in
+    <form onSubmit={submit} className="card-body">
+      <h2 className="card-title">Sign in</h2>
+      <fieldset className="fieldset">
+        <legend className="fieldset-legend">Password</legend>
+        <label className={`input w-full ${error ? "input-error" : ""}`}>
+          <KeyRound className="size-4 opacity-60" aria-hidden />
+          <input type="password" autoFocus autoComplete="current-password" value={password}
+            onChange={(e) => setPassword(e.target.value)} aria-invalid={!!error} />
+        </label>
+        {error && <p className="label text-error" role="alert">{error}</p>}
+      </fieldset>
+      <button className="btn btn-primary mt-2" disabled={busy || !password}>
+        {busy && <span className="loading loading-spinner loading-sm" />} Sign in
       </button>
     </form>
   );
@@ -39,10 +45,21 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center px-6 py-16">
-      <h1 className="wide text-5xl sm:text-6xl font-extrabold leading-[0.95]">Itinerary</h1>
-      <p className="mt-3 mb-10 max-w-md text-lg text-muted">Your tickets and confirmations, in the order you'll use them.</p>
-      <Suspense><LoginForm /></Suspense>
+    <main className="min-h-dvh">
+      <div className="navbar px-4 sm:px-6"><div className="flex-1"><Logo /></div><ThemePicker /></div>
+      <div className="hero min-h-[80dvh]">
+        <div className="hero-content w-full max-w-4xl flex-col gap-10 lg:flex-row lg:justify-between">
+          <div className="max-w-md text-center lg:text-left">
+            <h1 className="wide text-4xl font-extrabold leading-tight sm:text-5xl">Every ticket, in order</h1>
+            <p className="mt-4 text-lg text-base-content/70">
+              Boarding passes, e-tickets and hotel confirmations become one day-by-day plan, with each flight's recent track record.
+            </p>
+          </div>
+          <div className="card w-full max-w-sm bg-base-100 shadow-xl">
+            <Suspense><LoginForm /></Suspense>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }

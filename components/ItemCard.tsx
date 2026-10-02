@@ -15,9 +15,6 @@ export type CardEntry = {
   afterArrival?: boolean;
 };
 
-const low = (i: ItemDTO) =>
-  Object.entries(i.fieldConfidence ?? {}).some(([k, v]) => v < 0.7 && !i.userEdited.includes(confToField(k)));
-
 export function confToField(k: string) {
   const map: Record<string, string> = {
     start_local: "startAt", end_local: "endAt", start_place: "origin", end_place: "destination",
@@ -26,30 +23,33 @@ export function confToField(k: string) {
   return map[k] ?? k;
 }
 
+export const needsCheck = (i: ItemDTO) =>
+  Object.entries(i.fieldConfidence ?? {}).some(([k, v]) => v < 0.7 && !i.userEdited.includes(confToField(k)));
+
 export function ItemCard({
   entry, onOpen, readOnly, showCodes = true, isNew,
 }: { entry: CardEntry; onOpen?: () => void; readOnly?: boolean; showCodes?: boolean; isNew?: boolean }) {
   const { item } = entry;
-  const flagged = !readOnly && low(item);
-  const Wrapper = onOpen ? "button" : "div";
+  const flagged = !readOnly && needsCheck(item);
+  const body = item.type === "flight"
+    ? <FlightBody entry={entry} showCodes={showCodes} badge={!readOnly} />
+    : <PlainBody entry={entry} showCodes={showCodes} />;
+  const cls = `card card-border print-break w-full overflow-hidden bg-base-100 text-left ${isNew ? "arrive" : ""}`;
 
-  return (
-    <Wrapper
-      type={onOpen ? "button" : undefined}
-      onClick={onOpen}
-      className={`print-break block w-full text-left rounded-xl bg-surface border border-line overflow-hidden ${onOpen ? "hover:border-muted cursor-pointer" : ""} ${isNew ? "arrive" : ""}`}
-    >
-      {item.type === "flight" ? (
-        <FlightBody entry={entry} showCodes={showCodes} badge={!readOnly} />
-      ) : (
-        <PlainBody entry={entry} showCodes={showCodes} />
-      )}
+  const inner = (
+    <>
+      {body}
       {flagged && (
-        <div className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-warn bg-warn-bg">
-          <TriangleAlert className="size-3.5" aria-hidden /> Some details may be misread. Check them.
+        <div className="flex items-center gap-1.5 bg-warning/15 px-4 py-1.5 text-xs font-medium">
+          <TriangleAlert className="size-3.5 text-warning" aria-hidden /> Some details may be misread. Open to check them.
         </div>
       )}
-    </Wrapper>
+    </>
+  );
+  return onOpen ? (
+    <button type="button" onClick={onOpen} className={`${cls} cursor-pointer transition-shadow hover:shadow-md focus-visible:shadow-md`}>{inner}</button>
+  ) : (
+    <div className={cls}>{inner}</div>
   );
 }
 
@@ -63,28 +63,30 @@ function FlightBody({ entry, showCodes, badge }: { entry: CardEntry; showCodes: 
       <div className="px-4 pt-3 pb-3">
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="flex items-center gap-2 font-semibold">
-            <TypeIcon type="flight" className="size-4" />
-            {fno ?? "Flight"}
-            {op && <span className="font-normal text-muted">operated as {op}</span>}
+            <span className="badge badge-primary badge-sm wide">{fno ?? "Flight"}</span>
+            {op && <span className="font-normal text-base-content/60">operated as {op}</span>}
           </span>
           {badge && <ReliabilityBadge item={item} />}
         </div>
         <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2 sm:gap-3">
           <div>
-            <div className="wide text-2xl sm:text-3xl font-bold leading-none">{item.origin ?? "???"}</div>
-            <div className="mt-1 text-sm text-muted truncate">{item.originCity ?? "\u00a0"}</div>
+            <div className="wide text-2xl font-bold leading-none sm:text-3xl">{item.origin ?? "???"}</div>
+            <div className="mt-1 truncate text-sm text-base-content/60">{item.originCity ?? "\u00a0"}</div>
           </div>
-          <div className="pb-6 text-center text-xs text-muted min-w-12 sm:min-w-16">
-            <div className="h-px bg-line mb-1" />
+          <div className="min-w-12 pb-6 text-center text-xs text-base-content/60 sm:min-w-20">
+            <div className="mb-1 flex items-center gap-1" aria-hidden>
+              <span className="h-px flex-1 bg-base-300" /><TypeIcon type="flight" className="size-3.5 rotate-45 text-primary" /><span className="h-px flex-1 bg-base-300" />
+            </div>
             {minutes != null && minutes > 0 ? durationLabel(minutes) : ""}
           </div>
           <div className="text-right">
-            <div className="wide text-2xl sm:text-3xl font-bold leading-none">{item.destination ?? "???"}</div>
-            <div className="mt-1 text-sm text-muted whitespace-nowrap">
+            <div className="wide text-2xl font-bold leading-none sm:text-3xl">{item.destination ?? "???"}</div>
+            <div className="mt-1 whitespace-nowrap text-sm text-base-content/60">
               {entry.endLocal ? (
                 <>
-                  <span className="hidden sm:inline">arrives </span><span className="font-semibold text-ink">{entry.endLocal}</span>
-                  {entry.endDayOffset > 0 && <sup className="ml-0.5 font-semibold text-ink">+{entry.endDayOffset}</sup>}
+                  <span className="hidden sm:inline">lands </span>
+                  <span className="font-semibold text-base-content">{entry.endLocal}</span>
+                  {entry.endDayOffset > 0 && <sup className="ml-0.5 font-semibold text-accent">+{entry.endDayOffset}</sup>}
                 </>
               ) : (item.destinationCity ?? "\u00a0")}
             </div>
@@ -100,27 +102,20 @@ function PlainBody({ entry, showCodes }: { entry: CardEntry; showCodes: boolean 
   const { item } = entry;
   const where = [item.origin, item.destination && item.destination !== item.origin ? item.destination : null]
     .filter(Boolean).join(" to ");
-  const hasDetails = (showCodes && item.confirmationCode) || item.address || (showCodes && item.seat);
   return (
     <>
-      <div className="flex gap-3 px-4 py-3">
-        <TypeIcon type={item.type} className="mt-0.5 size-5 shrink-0 text-muted" />
-        <div className="min-w-0">
-          <div className="font-semibold leading-snug">{item.title}</div>
-          <div className="text-sm text-muted">
-            {TYPE_LABEL[item.type] ?? item.type}
-            {where ? `, ${where}` : ""}
-            {entry.afterArrival ? ", after you land" : ""}
-            {entry.endLocal && (
-              <>
-                {" "}until {entry.endLocal}
-                {entry.endDayOffset > 0 && <sup className="ml-0.5">+{entry.endDayOffset}</sup>}
-              </>
-            )}
-          </div>
+      <div className="px-4 py-3">
+        <div className="font-semibold leading-snug">{item.title}</div>
+        <div className="text-sm text-base-content/60">
+          {TYPE_LABEL[item.type] ?? item.type}
+          {where ? `, ${where}` : ""}
+          {entry.endLocal && (
+            <> until {entry.endLocal}{entry.endDayOffset > 0 && <sup className="ml-0.5">+{entry.endDayOffset}</sup>}</>
+          )}
+          {entry.afterArrival && <span className="badge badge-ghost badge-sm ml-2 align-middle">after you land</span>}
         </div>
       </div>
-      {hasDetails && <Details item={item} showCodes={showCodes} />}
+      <Details item={item} showCodes={showCodes} />
     </>
   );
 }
@@ -133,25 +128,25 @@ function Details({ item, showCodes, perforated }: { item: ItemDTO; showCodes: bo
   if (item.gate) parts.push(["Gate", item.gate]);
   if (!parts.length && !item.address) return null;
   return (
-    <div className={`${perforated ? "perf" : "border-t border-line"} px-4 py-2.5 text-sm`}>
+    <div className={`${perforated ? "perf" : "border-t border-base-300"} bg-base-100 px-4 py-2.5 text-sm`}>
       {parts.length > 0 && (
         <dl className="flex flex-wrap gap-x-5 gap-y-1">
           {parts.map(([k, v]) => (
-            <div key={k} className="flex gap-1.5">
-              <dt className="text-muted">{k}</dt>
-              <dd className="font-semibold wide">{v}</dd>
+            <div key={k} className="flex min-w-0 gap-1.5">
+              <dt className="text-base-content/60">{k}</dt>
+              <dd className="wide truncate font-semibold">{v}</dd>
             </div>
           ))}
         </dl>
       )}
-      {item.address && <div className="text-muted mt-0.5 truncate">{item.address}</div>}
+      {item.address && <div className="mt-0.5 truncate text-base-content/60">{item.address}</div>}
     </div>
   );
 }
 
 type Badge = { onTime: number; operated: number; rating: string } | null;
 
-/** Shows the track record only from cache, so loading a page never spends flight-API calls. */
+/** Track-record badge from cache only, so browsing never spends flight-API calls. */
 function ReliabilityBadge({ item }: { item: ItemDTO }) {
   const [badge, setBadge] = useState<Badge>(null);
   useEffect(() => {
@@ -164,10 +159,6 @@ function ReliabilityBadge({ item }: { item: ItemDTO }) {
     return () => { alive = false; };
   }, [item.id, item.carrier, item.number, item.origin, item.startAt]);
   if (!badge) return null;
-  const tone = badge.rating === "good" ? "bg-good-bg text-good" : badge.rating === "fair" ? "bg-warn-bg text-warn" : "bg-bad-bg text-bad";
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>
-      On time {badge.onTime}/{badge.operated}
-    </span>
-  );
+  const tone = badge.rating === "good" ? "badge-success" : badge.rating === "fair" ? "badge-warning" : "badge-error";
+  return <span className={`badge badge-soft badge-sm ${tone}`}>On time {badge.onTime}/{badge.operated}</span>;
 }

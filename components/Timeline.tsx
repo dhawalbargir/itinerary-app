@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { BedDouble, CircleAlert, GripVertical, TriangleAlert } from "lucide-react";
-import type { Timeline as TimelineT } from "@/lib/timeline";
+import { Fragment, useState } from "react";
+import { BedDouble, CalendarX2, ChevronRight, GripVertical, TriangleAlert } from "lucide-react";
+import type { Timeline as TimelineT, Entry } from "@/lib/timeline";
 import type { ItemDTO } from "@/lib/types";
+import { TRANSPORT } from "@/lib/types";
 import { dayHeading, durationLabel, zoneAbbr } from "@/lib/format";
 import { ItemCard } from "./ItemCard";
+import { TypeIcon } from "./icons";
 
 type Props = {
   timeline: TimelineT;
@@ -21,25 +23,20 @@ export function Timeline({ timeline, readOnly, showCodes = true, newIds, onOpen,
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       {!readOnly && timeline.unscheduled.length > 0 && (
-        <section aria-labelledby="unscheduled" className="no-print rounded-2xl border-2 border-dashed border-warn/60 bg-warn-bg/60 p-4">
-          <h2 id="unscheduled" className="flex items-center gap-2 font-semibold text-warn">
-            <CircleAlert className="size-4" aria-hidden />
+        <section aria-labelledby="unscheduled" className="no-print rounded-box border border-warning/40 bg-warning/10 p-4">
+          <h2 id="unscheduled" className="flex items-center gap-2 font-semibold">
+            <CalendarX2 className="size-5 text-warning" aria-hidden />
             {timeline.unscheduled.length === 1 ? "1 item has no date" : `${timeline.unscheduled.length} items have no date`}
           </h2>
-          <p className="mt-0.5 text-sm text-muted">Open one to set its date, or drag it onto a day.</p>
+          <p className="mt-0.5 text-sm text-base-content/70">Open one to set its date, or drag it onto a day below.</p>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {timeline.unscheduled.map((item) => (
-              <li
-                key={item.id}
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData("text/item-id", item.id)}
-                className="flex items-stretch gap-1"
-              >
-                <span className="hidden sm:flex items-center text-muted cursor-grab" aria-hidden><GripVertical className="size-4" /></span>
+              <li key={item.id} draggable onDragStart={(e) => e.dataTransfer.setData("text/item-id", item.id)} className="flex items-stretch gap-1">
+                <span className="hidden cursor-grab items-center text-base-content/40 sm:flex" aria-hidden><GripVertical className="size-4" /></span>
                 <div className="flex-1">
-                  <ItemCard entry={{ item, startLocal: "", endLocal: null, endDayOffset: 0, afterArrival: false }} onOpen={() => onOpen?.(item)} isNew={newIds?.has(item.id)} />
+                  <ItemCard entry={{ item, startLocal: "", endLocal: null, endDayOffset: 0 }} onOpen={() => onOpen?.(item)} isNew={newIds?.has(item.id)} />
                 </div>
               </li>
             ))}
@@ -53,7 +50,7 @@ export function Timeline({ timeline, readOnly, showCodes = true, newIds, onOpen,
         return (
           <section key={day.date} aria-label={`${h.weekday} ${h.day}`}>
             <header
-              className={`sticky top-0 z-10 -mx-4 px-4 py-2 bg-ground/95 backdrop-blur border-b ${dragOver === day.date ? "border-sign bg-sign/20" : "border-line"}`}
+              className={`sticky top-16 z-10 -mx-2 mb-3 rounded-box border px-3 py-2 backdrop-blur transition-colors sm:-mx-3 ${dragOver === day.date ? "border-secondary bg-secondary/20" : "border-transparent bg-base-200/90"}`}
               onDragOver={readOnly ? undefined : (e) => { e.preventDefault(); setDragOver(day.date); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={readOnly ? undefined : (e) => {
@@ -62,54 +59,88 @@ export function Timeline({ timeline, readOnly, showCodes = true, newIds, onOpen,
                 if (id) onDropOnDay?.(id, day.date);
               }}
             >
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <h2 className="wide text-2xl font-bold">{h.day}</h2>
-                <span className="text-muted">{h.weekday}</span>
-                {isToday && <span className="rounded bg-sign px-1.5 text-xs font-bold text-sign-ink">Today</span>}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h2 className="wide text-2xl font-extrabold">{h.day}</h2>
+                <span className="text-base-content/60">{h.weekday}</span>
+                {isToday && <span className="badge badge-secondary badge-sm">Today</span>}
                 {day.cities.length > 0 && (
-                  <span className="ml-auto text-sm font-medium truncate max-w-[60%]">{day.cities.join(" → ")}</span>
+                  <span className="ml-auto flex flex-wrap items-center gap-1 text-sm font-medium">
+                    {day.cities.map((c, i) => (
+                      <Fragment key={i}>
+                        {i > 0 && <ChevronRight className="size-3.5 text-base-content/40" aria-label="to" />}
+                        <span>{c}</span>
+                      </Fragment>
+                    ))}
+                  </span>
                 )}
               </div>
               {day.staying.length > 0 && (
-                <div className="mt-1 flex items-center gap-1.5 text-sm text-muted">
-                  <BedDouble className="size-4" aria-hidden /> Staying at {day.staying.join(", ")}
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {day.staying.map((s) => (
+                    <span key={s} className="badge badge-ghost badge-sm gap-1"><BedDouble className="size-3.5" aria-hidden /> {s}</span>
+                  ))}
                 </div>
               )}
             </header>
 
-            <ol className="mt-4 space-y-3">
-              {day.entries.map((e) => (
-                <li key={e.item.id}>
-                  {e.gapBefore && (
-                    <div className="ml-[4.25rem] sm:ml-[5.25rem] mb-3 text-xs text-muted">
-                      {e.gapBefore.kind === "layover" ? "Layover" : "Free time"} {durationLabel(e.gapBefore.minutes)}
-                    </div>
-                  )}
-                  {e.warning && (
-                    <div className="ml-[4.25rem] sm:ml-[5.25rem] mb-2 flex items-center gap-1.5 rounded-md bg-bad-bg px-2 py-1 text-xs font-semibold text-bad">
-                      <TriangleAlert className="size-3.5" aria-hidden /> {e.warning}
-                    </div>
-                  )}
-                  <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] sm:grid-cols-[4.5rem_minmax(0,1fr)] gap-2 sm:gap-3">
-                    <div className="pt-3 text-right">
-                      {e.item.type === "hotel_checkin" && <div className="text-[0.7rem] text-muted leading-none mb-1">from</div>}
-                      <div className="wide text-lg font-bold leading-none">{e.startLocal}</div>
-                      <div className="mt-1 text-[0.7rem] text-muted">{zoneAbbr(e.item.startAt!, e.item.startTz)}</div>
-                    </div>
-                    <ItemCard
-                      entry={e}
-                      readOnly={readOnly}
-                      showCodes={showCodes}
-                      isNew={newIds?.has(e.item.id)}
-                      onOpen={onOpen ? () => onOpen(e.item) : undefined}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <ul className="timeline timeline-vertical trip-timeline">
+              {day.entries.map((e, idx) => {
+                const prev = idx > 0 ? day.entries[idx - 1].item : null;
+                const first = idx === 0;
+                const last = idx === day.entries.length - 1;
+                return (
+                  <Fragment key={e.item.id}>
+                    {e.gapBefore && <GapRow e={e} prev={prev} />}
+                    <li>
+                      {!first || e.gapBefore ? <hr /> : null}
+                      <div className="timeline-start">
+                        {e.item.type === "hotel_checkin" && <div className="mb-0.5 text-[0.7rem] leading-none text-base-content/60">from</div>}
+                        <div className="wide text-base font-bold leading-none sm:text-lg">{e.startLocal}</div>
+                        <div className="mt-1 text-[0.7rem] text-base-content/60">{zoneAbbr(e.item.startAt!, e.item.startTz)}</div>
+                      </div>
+                      <div className="timeline-middle">
+                        <span className={`grid size-8 place-items-center rounded-full ${TRANSPORT.has(e.item.type) ? "bg-primary text-primary-content" : "border border-base-300 bg-base-100 text-base-content/70"}`}>
+                          <TypeIcon type={e.item.type} className="size-4" />
+                        </span>
+                      </div>
+                      <div className="timeline-end">
+                        {e.warning && (
+                          <div role="alert" className="alert alert-error alert-soft mb-2 px-3 py-1.5 text-xs font-semibold">
+                            <TriangleAlert className="size-4" aria-hidden /> {e.warning}
+                          </div>
+                        )}
+                        <ItemCard
+                          entry={e}
+                          readOnly={readOnly}
+                          showCodes={showCodes}
+                          isNew={newIds?.has(e.item.id)}
+                          onOpen={onOpen ? () => onOpen(e.item) : undefined}
+                        />
+                      </div>
+                      {!last ? <hr /> : null}
+                    </li>
+                  </Fragment>
+                );
+              })}
+            </ul>
           </section>
         );
       })}
     </div>
+  );
+}
+
+function GapRow({ e, prev }: { e: Entry; prev: ItemDTO | null }) {
+  const g = e.gapBefore!;
+  const where = g.kind === "layover" ? prev?.destinationCity ?? prev?.destination : null;
+  return (
+    <li className={g.kind === "layover" ? "leg" : ""}>
+      <hr />
+      <div className="timeline-middle"><span className="block size-2.5 rounded-full border-2 border-primary/60 bg-base-200" aria-hidden /></div>
+      <div className="timeline-end !mb-3 text-xs text-base-content/60">
+        {g.kind === "layover" ? "Layover" : "Free time"} {durationLabel(g.minutes)}{where ? ` in ${where}` : ""}
+      </div>
+      <hr />
+    </li>
   );
 }

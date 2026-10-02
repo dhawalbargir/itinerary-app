@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { Camera, Check, LoaderCircle, TriangleAlert, Upload } from "lucide-react";
+import { Camera, Check, CloudUpload, TriangleAlert, Upload } from "lucide-react";
 
 const MAX_BYTES = 4.4 * 1024 * 1024; // server upload limit
 const MAX_SOURCE_BYTES = 40 * 1024 * 1024; // before images are shrunk
@@ -86,30 +86,38 @@ export const Uploader = forwardRef<UploaderHandle, { tripId: string; onUploaded:
 
     useImperativeHandle(ref, () => ({ addFiles, openPicker: () => pick.current?.click() }));
 
+    const pending = rows.filter((r) => r.state !== "sent");
+
     return (
       <div className="no-print">
         <div
           onDragOver={(e) => { e.preventDefault(); setOver(true); }}
           onDragLeave={() => setOver(false)}
-          onDrop={(e) => { e.preventDefault(); setOver(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}
-          className={`rounded-2xl border-2 border-dashed transition-colors ${over ? "border-sign bg-sign/15" : "border-line"} ${big ? "px-6 py-14 text-center" : "px-4 py-4"}`}
+          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setOver(false); if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); }}
+          className={`rounded-box border-2 border-dashed transition-colors ${over ? "border-secondary bg-secondary/15" : "border-base-300 bg-base-100"} ${big ? "px-6 py-14 text-center" : "px-4 py-3"}`}
         >
           {big ? (
             <>
-              <p className="wide text-2xl font-bold">Drop your tickets here</p>
-              <p className="mx-auto mt-2 max-w-md text-muted">
+              <CloudUpload className="mx-auto size-12 text-primary" aria-hidden />
+              <p className="wide mt-3 text-2xl font-bold">Drop your tickets here</p>
+              <p className="mx-auto mt-2 max-w-md text-base-content/70">
                 Boarding passes, e-ticket PDFs, hotel and car confirmations, screenshots. Each one is read and placed on the right day.
               </p>
               <div className="mt-6 flex flex-wrap justify-center gap-2">
                 <button type="button" className="btn btn-primary" onClick={() => pick.current?.click()}><Upload className="size-4" /> Choose files</button>
-                <button type="button" className="btn" onClick={() => cam.current?.click()}><Camera className="size-4" /> Take photo</button>
+                <button type="button" className="btn btn-outline" onClick={() => cam.current?.click()}><Camera className="size-4" /> Take photo</button>
               </div>
+              <p className="mt-4 text-xs text-base-content/50">JPG, PNG, HEIC or PDF, up to 4 MB each</p>
             </>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-muted mr-auto">Drop more files here, or</span>
-              <button type="button" className="btn" onClick={() => pick.current?.click()}><Upload className="size-4" /> Choose files</button>
-              <button type="button" className="btn" onClick={() => cam.current?.click()}><Camera className="size-4" /> Take photo</button>
+              <CloudUpload className="size-5 text-base-content/50" aria-hidden />
+              <span className="mr-auto text-sm text-base-content/70">
+                <span className="hidden sm:inline">Drop more files anywhere on this page</span>
+                <span className="sm:hidden">Add more tickets</span>
+              </span>
+              <button type="button" className="btn btn-sm btn-ghost sm:hidden" onClick={() => pick.current?.click()}><Upload className="size-4" /> Files</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => cam.current?.click()}><Camera className="size-4" /> Photo</button>
             </div>
           )}
           <input ref={pick} type="file" multiple hidden accept="image/*,application/pdf,.heic,.heif,.pdf"
@@ -118,17 +126,20 @@ export const Uploader = forwardRef<UploaderHandle, { tripId: string; onUploaded:
             onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }} />
         </div>
 
-        {rows.some((r) => r.state !== "sent") && (
-          <ul className="mt-3 space-y-1 text-sm" aria-live="polite">
-            {rows.filter((r) => r.state !== "sent").map((r) => (
-              <li key={r.key} className="flex items-center gap-2">
-                {r.state === "failed" ? <TriangleAlert className="size-4 text-bad" aria-hidden />
-                  : r.state === "duplicate" ? <Check className="size-4 text-muted" aria-hidden />
-                  : <LoaderCircle className="size-4 animate-spin text-muted" aria-hidden />}
-                <span className="truncate">{r.name}</span>
-                <span className={`ml-auto shrink-0 ${r.state === "failed" ? "text-bad" : "text-muted"}`}>
+        {pending.length > 0 && (
+          <ul className="list mt-3 rounded-box border border-base-300 bg-base-100" aria-live="polite">
+            {pending.map((r) => (
+              <li key={r.key} className="list-row items-center py-2">
+                {r.state === "failed" ? <TriangleAlert className="size-5 text-error" aria-hidden />
+                  : r.state === "duplicate" ? <Check className="size-5 text-base-content/50" aria-hidden />
+                  : <span className="loading loading-spinner loading-sm text-primary" aria-hidden />}
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{r.name}</div>
+                  {r.state === "failed" && <div className="text-xs text-error">{r.error}</div>}
+                </div>
+                <span className={`badge badge-sm ${r.state === "failed" ? "badge-error badge-soft" : "badge-ghost"}`}>
                   {r.state === "preparing" ? "Preparing" : r.state === "uploading" ? "Uploading"
-                    : r.state === "duplicate" ? "Already in this trip" : r.error}
+                    : r.state === "duplicate" ? "Already in this trip" : "Failed"}
                 </span>
               </li>
             ))}

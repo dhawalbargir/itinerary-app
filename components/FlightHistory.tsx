@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { LoaderCircle, Radio } from "lucide-react";
+import { Radio } from "lucide-react";
 import { DateTime } from "luxon";
 import type { HistoryDay, Summary } from "@/lib/flights/summary";
 import { hm } from "@/lib/format";
@@ -13,13 +13,13 @@ type Resp = {
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
-  on_time: { label: "On time", cls: "bg-good-bg text-good" },
-  delayed: { label: "Delayed", cls: "bg-warn-bg text-warn" },
-  cancelled: { label: "Cancelled", cls: "bg-bad-bg text-bad" },
-  diverted: { label: "Diverted", cls: "bg-bad-bg text-bad" },
-  not_scheduled: { label: "Not scheduled", cls: "text-muted" },
-  scheduled: { label: "Scheduled", cls: "text-muted" },
-  unknown: { label: "No data", cls: "text-muted" },
+  on_time: { label: "On time", cls: "badge-success" },
+  delayed: { label: "Delayed", cls: "badge-warning" },
+  cancelled: { label: "Cancelled", cls: "badge-error" },
+  diverted: { label: "Diverted", cls: "badge-error" },
+  not_scheduled: { label: "Not scheduled", cls: "badge-ghost" },
+  scheduled: { label: "Scheduled", cls: "badge-ghost" },
+  unknown: { label: "No data", cls: "badge-ghost" },
 };
 
 export function FlightHistory({ itemId, refreshKey }: { itemId: string; refreshKey: string }) {
@@ -48,109 +48,117 @@ export function FlightHistory({ itemId, refreshKey }: { itemId: string; refreshK
     return () => clearInterval(t);
   }, [data?.live, load]);
 
-  return (
-    <section aria-labelledby="track" className="rounded-xl border border-line bg-surface">
-      <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
-        <h3 id="track" className="font-semibold">
-          Track record{data?.flightNo ? <span className="wide ml-2">{data.flightNo}</span> : null}
-        </h3>
-        {loading && <LoaderCircle className="size-4 animate-spin text-muted" aria-label="Loading" />}
+  if (loading && !data) {
+    return (
+      <div className="space-y-3" aria-busy="true">
+        <div className="skeleton h-20 w-full" /><div className="skeleton h-40 w-full" />
       </div>
+    );
+  }
+  if (!data) return null;
+  if (data.error) return <div role="alert" className="alert alert-soft">{data.error}</div>;
+  if (!data.configured) {
+    return (
+      <div role="alert" className="alert alert-info alert-soft">
+        <span>Flight history is off. Add <code className="font-semibold">AERODATABOX_API_KEY</code> in your Vercel project settings and redeploy.</span>
+      </div>
+    );
+  }
 
-      {data?.error ? (
-        <p className="px-4 py-3 text-sm text-muted">{data.error}</p>
-      ) : data && !data.configured ? (
-        <p className="px-4 py-3 text-sm text-muted">
-          Flight history is off. Add <code className="font-semibold">AERODATABOX_API_KEY</code> in your Vercel project settings and redeploy.
-        </p>
-      ) : data ? (
-        <div className="px-4 py-3 space-y-3">
-          {data.marketed && (
-            <p className="text-xs text-muted">Sold as {data.marketed}; showing the operating flight.</p>
-          )}
-          {data.live && <LiveBanner d={data.live} />}
-          <SummaryLine s={data.summary} n={data.days.filter((d) => d.date < data.today).length} />
-          {data.limited && <p className="text-sm text-warn">Daily flight-data limit reached; some days are missing.</p>}
-          <div className="overflow-x-auto -mx-4">
-            <table className="w-full min-w-[34rem] text-sm">
-              <thead className="text-left text-muted">
-                <tr>
-                  <th className="px-4 py-1.5 font-medium">Date</th>
-                  <th className="py-1.5 font-medium">Departed</th>
-                  <th className="py-1.5 font-medium">Arrived</th>
-                  <th className="py-1.5 font-medium text-right">Delay</th>
-                  <th className="px-4 py-1.5 font-medium">Status</th>
-                  <th className="pr-4 py-1.5 font-medium">Aircraft</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.days.map((d) => {
-                  const st = STATUS[d.status] ?? STATUS.unknown;
-                  const booked = d.date === data.bookedDate;
-                  return (
-                    <tr key={d.date} className={`border-t border-line ${booked ? "bg-sign/15" : ""}`}>
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        {DateTime.fromISO(d.date).toFormat("ccc d LLL")}
-                        {booked && <span className="ml-1 text-xs font-semibold">your flight</span>}
-                      </td>
-                      <td className="py-2 whitespace-nowrap"><Times sched={d.schedDep} actual={d.actualDep} tz={d.depTz} /></td>
-                      <td className="py-2 whitespace-nowrap"><Times sched={d.schedArr} actual={d.actualArr} tz={d.arrTz} /></td>
-                      <td className="py-2 text-right whitespace-nowrap wide font-semibold">
-                        {d.arrDelayMin == null ? "–" : d.arrDelayMin <= 0 ? `${d.arrDelayMin}` : `+${d.arrDelayMin}`}
-                      </td>
-                      <td className="px-4 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${st.cls}`}>{st.label}</span></td>
-                      <td className="pr-4 py-2 text-muted whitespace-nowrap">{d.aircraft ?? ""}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between text-xs text-muted">
-            <span>Delay is arrival delay in minutes; 15 or more counts as late.</span>
-            <button type="button" className="btn btn-quiet h-8 text-xs" onClick={() => setDays(days === 7 ? 14 : 7)}>
-              {days === 7 ? "Show 14 days" : "Show 7 days"}
-            </button>
+  const past = data.days.filter((d) => d.date < data.today).length;
+  const s = data.summary;
+  const pct = s.operated ? Math.round((s.onTime / s.operated) * 100) : null;
+  const tone = s.rating === "good" ? "text-success" : s.rating === "fair" ? "text-warning" : s.rating === "poor" ? "text-error" : "";
+
+  return (
+    <div className="space-y-4">
+      {data.marketed && <p className="text-sm text-base-content/60">Sold as {data.marketed}; showing the operating flight {data.flightNo}.</p>}
+
+      {data.live && (
+        <div role="status" className="alert alert-info alert-soft">
+          <Radio className="size-5" aria-hidden />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="font-semibold">Today</span>
+            <span>Departs <Times sched={data.live.schedDep} actual={data.live.actualDep} tz={data.live.depTz} /></span>
+            <span>Lands <Times sched={data.live.schedArr} actual={data.live.actualArr} tz={data.live.arrTz} /></span>
+            <span className={`badge badge-sm ${(STATUS[data.live.status] ?? STATUS.unknown).cls}`}>{(STATUS[data.live.status] ?? STATUS.unknown).label}</span>
           </div>
         </div>
-      ) : null}
-    </section>
+      )}
+
+      {s.operated ? (
+        <div className="stats stats-vertical w-full border border-base-300 bg-base-100 sm:stats-horizontal">
+          <div className="stat">
+            <div className="stat-title">On time</div>
+            <div className={`stat-value wide ${tone}`}>{pct}%</div>
+            <div className="stat-desc">{s.onTime} of {s.operated} days</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Median arrival delay</div>
+            <div className="stat-value wide">{s.medianDelay ?? "–"}<span className="text-base font-semibold"> min</span></div>
+            <div className="stat-desc">Late means 15 min or more</div>
+          </div>
+          <div className="stat">
+            <div className="stat-title">Cancelled</div>
+            <div className={`stat-value wide ${s.cancelled ? "text-error" : ""}`}>{s.cancelled}</div>
+            <div className="stat-desc">Last {past} days</div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-base-content/60">No completed flights to compare yet.</p>
+      )}
+
+      {data.limited && <div role="alert" className="alert alert-warning alert-soft text-sm">Daily flight-data limit reached; some days are missing.</div>}
+
+      <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+        <table className="table table-zebra table-sm min-w-[34rem]">
+          <thead>
+            <tr><th>Date</th><th>Departed</th><th>Landed</th><th className="text-right">Delay</th><th>Status</th><th>Aircraft</th></tr>
+          </thead>
+          <tbody>
+            {data.days.map((d) => {
+              const st = STATUS[d.status] ?? STATUS.unknown;
+              const booked = d.date === data.bookedDate;
+              return (
+                <tr key={d.date} className={booked ? "!bg-secondary/20" : ""}>
+                  <td className="whitespace-nowrap">
+                    {DateTime.fromISO(d.date).toFormat("ccc d LLL")}
+                    {booked && <span className="badge badge-secondary badge-xs ml-1.5">yours</span>}
+                  </td>
+                  <td className="whitespace-nowrap"><Times sched={d.schedDep} actual={d.actualDep} tz={d.depTz} /></td>
+                  <td className="whitespace-nowrap"><Times sched={d.schedArr} actual={d.actualArr} tz={d.arrTz} /></td>
+                  <td className="wide whitespace-nowrap text-right font-semibold">
+                    {d.arrDelayMin == null ? "–" : d.arrDelayMin <= 0 ? `${d.arrDelayMin}` : `+${d.arrDelayMin}`}
+                  </td>
+                  <td><span className={`badge badge-soft badge-sm ${st.cls}`}>{st.label}</span></td>
+                  <td className="whitespace-nowrap text-base-content/60">{d.aircraft ?? ""}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-base-content/60">Times are local. Delay is arrival delay in minutes.</span>
+        <div className="join">
+          <button type="button" className={`btn btn-xs join-item ${days === 7 ? "btn-active" : ""}`} onClick={() => setDays(7)}>7 days</button>
+          <button type="button" className={`btn btn-xs join-item ${days === 14 ? "btn-active" : ""}`} onClick={() => setDays(14)}>14 days</button>
+        </div>
+      </div>
+      {loading && <progress className="progress progress-primary w-full" />}
+    </div>
   );
 }
 
 function Times({ sched, actual, tz }: { sched: string | null; actual: string | null; tz: string | null }) {
-  if (!sched && !actual) return <span className="text-muted">–</span>;
+  if (!sched && !actual) return <span className="text-base-content/50">–</span>;
   return (
     <span>
       <span className="wide font-semibold">{hm(actual ?? sched, tz)}</span>
       {actual && sched && hm(actual, tz) !== hm(sched, tz) && (
-        <span className="ml-1 text-xs text-muted line-through">{hm(sched, tz)}</span>
+        <span className="ml-1 text-xs text-base-content/50 line-through">{hm(sched, tz)}</span>
       )}
     </span>
-  );
-}
-
-function SummaryLine({ s, n }: { s: Summary; n: number }) {
-  if (!s.operated) return <p className="text-sm text-muted">No completed flights to compare yet.</p>;
-  const tone = s.rating === "good" ? "text-good" : s.rating === "fair" ? "text-warn" : "text-bad";
-  return (
-    <p className="text-sm">
-      <span className={`font-bold ${tone}`}>On time {s.onTime} of {s.operated} days.</span>
-      {s.medianDelay != null && <> Median arrival delay {s.medianDelay} min.</>}
-      {s.cancelled ? ` ${s.cancelled} cancelled.` : " None cancelled."}
-      <span className="text-muted"> Last {n} days.</span>
-    </p>
-  );
-}
-
-function LiveBanner({ d }: { d: HistoryDay }) {
-  const st = STATUS[d.status] ?? STATUS.unknown;
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-sign/25 px-3 py-2 text-sm">
-      <span className="flex items-center gap-1.5 font-semibold"><Radio className="size-4" aria-hidden /> Today</span>
-      <span>Departs <Times sched={d.schedDep} actual={d.actualDep} tz={d.depTz} /></span>
-      <span>Arrives <Times sched={d.schedArr} actual={d.actualArr} tz={d.arrTz} /></span>
-      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${st.cls}`}>{st.label}</span>
-    </div>
   );
 }

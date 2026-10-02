@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { loadTrip } from "@/lib/load-trip";
 import { tripRange } from "@/lib/format";
 import { SharedTimeline } from "@/components/SharedTimeline";
+import { AppNav } from "@/components/AppNav";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -22,12 +23,16 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   }));
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pb-24">
-      <header className="pt-8 pb-6">
-        <h1 className="wide text-3xl sm:text-4xl font-extrabold">{data.trip.title}</h1>
-        <p className="mt-1 text-muted">{tripRange(data.trip.startDate, data.trip.endDate)}</p>
-      </header>
-      <SharedTimeline timeline={timeline} showCodes={showCodes} />
-    </main>
+    <>
+      <AppNav signedIn={false} />
+      <main className="mx-auto max-w-3xl px-4 pb-24 sm:px-6">
+        <header className="py-8">
+          <span className="badge badge-ghost mb-3">Shared itinerary</span>
+          <h1 className="wide text-3xl font-extrabold sm:text-4xl">{data.trip.title}</h1>
+          <p className="mt-1 text-base-content/70">{tripRange(data.trip.startDate, data.trip.endDate)}</p>
+        </header>
+        <SharedTimeline timeline={timeline} showCodes={showCodes} />
+      </main>
+    </>
   );
 }

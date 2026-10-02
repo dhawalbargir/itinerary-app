@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LoaderCircle, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
-export function NewTrip({ prominent }: { prominent?: boolean }) {
+export function NewTrip({ size = "md" }: { size?: "md" | "lg" }) {
   const router = useRouter();
-  const [open, setOpen] = useState(!!prominent);
+  const dialog = useRef<HTMLDialogElement>(null);
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,19 +21,30 @@ export function NewTrip({ prominent }: { prominent?: boolean }) {
     router.push(`/trips/${j.trip.id}`);
   }
 
-  if (!open) {
-    return <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}><Plus className="size-4" /> New trip</button>;
-  }
   return (
-    <form onSubmit={create} className="flex w-full flex-wrap items-end gap-2">
-      <label className="field flex-1 min-w-56">
-        <span>Trip name</span>
-        <input className="input" autoFocus placeholder="Goa with family, Nov 2026" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} />
-      </label>
-      <button className="btn btn-primary" disabled={busy || !title.trim()}>
-        {busy && <LoaderCircle className="size-4 animate-spin" />} Create trip
+    <>
+      <button type="button" className={`btn btn-primary ${size === "lg" ? "btn-lg" : ""}`} onClick={() => dialog.current?.showModal()}>
+        <Plus className="size-5" /> New trip
       </button>
-      {error && <p className="w-full text-sm text-bad" role="alert">{error}</p>}
-    </form>
+      <dialog ref={dialog} className="modal modal-bottom sm:modal-middle">
+        <form onSubmit={create} className="modal-box">
+          <h3 className="text-lg font-bold">New trip</h3>
+          <p className="mt-1 text-sm text-base-content/70">Dates are filled in from the tickets you add.</p>
+          <fieldset className="fieldset mt-4">
+            <legend className="fieldset-legend">Trip name</legend>
+            <input className="input w-full" autoFocus placeholder="Manila, October 2026" value={title}
+              onChange={(e) => setTitle(e.target.value)} maxLength={120} />
+          </fieldset>
+          {error && <p className="mt-2 text-sm text-error" role="alert">{error}</p>}
+          <div className="modal-action">
+            <button type="button" className="btn btn-ghost" onClick={() => dialog.current?.close()}>Cancel</button>
+            <button className="btn btn-primary" disabled={busy || !title.trim()}>
+              {busy && <span className="loading loading-spinner loading-sm" />} Create trip
+            </button>
+          </div>
+        </form>
+        <form method="dialog" className="modal-backdrop"><button aria-label="Close">close</button></form>
+      </dialog>
+    </>
   );
 }
