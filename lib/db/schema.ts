@@ -22,12 +22,14 @@ export const documents = pgTable(
     tripId: uuid("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),
     blobUrl: text("blob_url").notNull(),
     blobPath: text("blob_path"),
+    blobAccess: text("blob_access").notNull().default("public"), // public | private (matches the Blob store)
     mimeType: text("mime_type").notNull(),
     fileName: text("file_name"),
     sha256: text("sha256").notNull(),
     status: text("status").notNull().default("uploaded"), // uploaded | processing | done | failed | manual
     rawExtraction: jsonb("raw_extraction"),
     error: text("error"),
+    processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique("documents_trip_sha").on(t.tripId, t.sha256)],

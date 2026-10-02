@@ -29,8 +29,11 @@ export async function extractFromFile(bytes: ArrayBuffer, mimeType: string): Pro
     const retryNote = lastError
       ? `\n\nYour previous answer failed validation: ${lastError}. Call the tool again with corrected input.`
       : "";
+    const model = process.env.OPENAI_MODEL || "gpt-5-mini";
     const res = await client().responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-5-mini",
+      model,
+      // Reading a ticket needs little reasoning; low effort is much faster on reasoning models.
+      ...(/^(gpt-5|o\d)/.test(model) ? { reasoning: { effort: "low" as const } } : {}),
       instructions: SYSTEM_PROMPT,
       input: [{ role: "user", content: [filePart, { type: "input_text", text: USER_PROMPT + retryNote }] }],
       tools: [{

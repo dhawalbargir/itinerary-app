@@ -45,7 +45,7 @@ npm run dev                    # http://localhost:3000
 
 ## How it works
 
-- **Upload:** the browser converts HEIC photos to JPEG, shrinks images to 2000 px, hashes each file to skip duplicates, and uploads straight to Vercel Blob (`app/api/upload`).
+- **Upload:** the browser converts HEIC photos to JPEG and shrinks images to 2000 px, then sends the file to `POST /api/documents`, which skips duplicates and stores it in Vercel Blob (public or private stores both work; files are only served to you through `/api/files/:id`). Files up to 4 MB.
 - **Reading:** `POST /api/documents` registers the file and runs `lib/extraction/process.ts` in the background with Next's `after()`. The OpenAI Responses API returns items through a forced function call, validated with Zod, with one retry on bad output.
 - **Time:** the model returns local wall-clock times. Flights get zones from the bundled airport list (`data/airports.json`); other items use the model's zone hint, then `DEFAULT_TZ`. Everything is stored in UTC with its zone.
 - **Timeline:** `lib/timeline.ts` sorts, groups by local day, adds layovers, tight-connection and overlap warnings, "+1" arrivals and hotel stays.
@@ -65,6 +65,6 @@ npm run dev                    # http://localhost:3000
 ## Notes and limits
 
 - Single owner: sign-in is one password. Share links give others read-only access.
-- Uploaded files live at unguessable random URLs on Vercel Blob but are not behind sign-in.
+- Uploaded files are only served to the signed-in owner. Use a private Blob store for the strongest protection.
 - Documents are sent to the OpenAI API to be read.
 - Flight data quality depends on AeroDataBox coverage for the airline and route.

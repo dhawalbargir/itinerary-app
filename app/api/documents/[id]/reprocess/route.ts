@@ -9,7 +9,7 @@ export const maxDuration = 300;
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
     const { id } = await params;
-    const [doc] = await db().update(documents).set({ status: "processing", error: null })
+    const [doc] = await db().update(documents).set({ status: "processing", error: null, processingStartedAt: new Date() })
       .where(eq(documents.id, id)).returning();
     if (!doc) return bad("Document not found.", 404);
     after(() => processDocument(id));

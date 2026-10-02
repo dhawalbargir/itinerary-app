@@ -1,10 +1,10 @@
 "use client";
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
 import { Camera, Check, LoaderCircle, TriangleAlert, Upload } from "lucide-react";
 
-const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_BYTES = 4.4 * 1024 * 1024; // server upload limit
+const MAX_SOURCE_BYTES = 40 * 1024 * 1024; // before images are shrunk
 const MAX_FILES = 25;
 const MAX_EDGE = 2000;
 
@@ -37,11 +37,6 @@ async function prepare(file: File): Promise<File> {
   return new File([jpeg], name, { type: "image/jpeg" });
 }
 
-async function sha256(file: File) {
-  const buf = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export const Uploader = forwardRef<UploaderHandle, { tripId: string; onUploaded: () => void; big?: boolean }>(
   function Uploader({ tripId, onUploaded, big }, ref) {
     const [rows, setRows] = useState<Row[]>([]);
@@ -53,21 +48,25 @@ export const Uploader = forwardRef<UploaderHandle, { tripId: string; onUploaded:
 
     async function one(file: File, key: string) {
       try {
-        if (file.size > MAX_BYTES * 2) throw new Error("File is larger than 20 MB.");
+        if (file.size > MAX_SOURCE_BYTES) throw new Error("File is too large.");
         const ready = await prepare(file);
-        if (ready.size > MAX_BYTES) throw new Error("File is larger than 20 MB.");
-        const hash = await sha256(ready);
+        if (ready.size > MAX_BYTES) throw new Error("File is larger than 4 MB. Try a screenshot of the ticket instead.");
         update(key, { state: "uploading" });
-        const safe = ready.name.replace(/[^\w.\-]+/g, "_").slice(-80);
-        const blob = await upload(`trips/${tripId}/${safe}`, ready, {
-          access: "public", handleUploadUrl: "/api/upload", contentType: ready.type,
-        });
-        const res = await fetch("/api/documents", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tripId, url: blob.url, pathname: blob.pathname, mimeType: ready.type, fileName: file.name, sha256: hash }),
-        });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error ?? "Upload failed.");
+        const form = new FormData();
+        form.append("tripId", tripId);
+        form.append("file", ready, ready.name);
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 120_000);
+        let res: Response;
+        try {
+          res = await fetch("/api/documents", { method: "POST", body: form, signal: ctrl.signal });
+        } catch (e) {
+          throw new Error(e instanceof DOMException && e.name === "AbortError" ? "Upload timed out. Check your connection and try again." : "Could not reach the server.");
+        } finally {
+          clearTimeout(timer);
+        }
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j.error ?? `Upload failed (HTTP ${res.status}).`);
         update(key, { state: j.duplicate ? "duplicate" : "sent" });
         onUploaded();
       } catch (e) {

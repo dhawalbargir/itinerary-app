@@ -4,18 +4,18 @@ import type { NewItem } from "@/lib/db/schema";
 import { extractFromFile } from "./extract";
 import { extractedToItems, matchKey } from "./to-items";
 import { recomputeTripDates } from "@/lib/trips";
+import { readFile } from "@/lib/blob";
 
 /** Runs after upload (and on "Read again"). Never throws; failures are stored on the document. */
 export async function processDocument(documentId: string) {
   const d = db();
   const [doc] = await d.select().from(documents).where(eq(documents.id, documentId));
   if (!doc) return;
-  await d.update(documents).set({ status: "processing", error: null }).where(eq(documents.id, documentId));
+  await d.update(documents).set({ status: "processing", error: null, processingStartedAt: new Date() })
+    .where(eq(documents.id, documentId));
 
   try {
-    const res = await fetch(doc.blobUrl);
-    if (!res.ok) throw new Error(`Could not download the file (HTTP ${res.status}).`);
-    const bytes = await res.arrayBuffer();
+    const bytes = await (await readFile(doc.blobUrl, doc.blobAccess)).bytes();
 
     const { data, raw } = await extractFromFile(bytes, doc.mimeType);
     const drafts = extractedToItems(data.items);
