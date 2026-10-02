@@ -45,3 +45,46 @@ describe("buildTimeline", () => {
     expect(t.days.find((d) => d.date === "2026-11-15")!.staying).toEqual(["Taj"]);
   });
 });
+
+describe("check-in after arrival", () => {
+  // The reported case: BOM → HKG → MNL, hotel in Pasay opens at 14:00 but CX 919 lands 16:30.
+  const cx660 = item({ type: "flight", carrier: "CX", number: "660", origin: "BOM", destination: "HKG",
+    originCity: "Mumbai", destinationCity: "Hong Kong",
+    startAt: "2026-10-05T20:10:00Z", startTz: "Asia/Kolkata", endAt: "2026-10-06T02:10:00Z", endTz: "Asia/Hong_Kong" });
+  const cx919 = item({ type: "flight", carrier: "CX", number: "919", origin: "HKG", destination: "MNL",
+    originCity: "Hong Kong", destinationCity: "Manila",
+    startAt: "2026-10-06T06:05:00Z", startTz: "Asia/Hong_Kong", endAt: "2026-10-06T08:30:00Z", endTz: "Asia/Manila" });
+  const hotel = item({ type: "hotel_checkin", title: "Check in: Microtel Mall of Asia", origin: "Pasay",
+    bookingGroup: "h", startAt: "2026-10-06T06:00:00Z", startTz: "Asia/Manila" });
+
+  it("places the check-in after the flight that lands there", () => {
+    const t = buildTimeline([hotel, cx919, cx660]);
+    const order = t.days.flatMap((d) => d.entries.map((e) => e.item.id));
+    expect(order).toEqual([cx660.id, cx919.id, hotel.id]);
+    const h = t.days.flatMap((d) => d.entries).find((e) => e.item.id === hotel.id)!;
+    expect(h.startLocal).toBe("14:00");         // still shows the real check-in time
+    expect(h.afterArrival).toBe(true);
+    expect(h.warning).toBeNull();
+    const second = t.days.flatMap((d) => d.entries).find((e) => e.item.id === cx919.id)!;
+    expect(second.gapBefore).toEqual({ minutes: 235, kind: "layover" });
+    expect(t.days[0].cities).toEqual(["Mumbai", "Hong Kong", "Manila"]);
+  });
+
+  it("leaves a check-in alone when you are already there", () => {
+    const local = item({ type: "flight", origin: "MNL", destination: "CEB", originCity: "Manila", destinationCity: "Cebu",
+      startAt: "2026-10-07T10:00:00Z", startTz: "Asia/Manila", endAt: "2026-10-07T11:20:00Z", endTz: "Asia/Manila" });
+    const manilaHotel = item({ type: "hotel_checkin", title: "Check in: Manila Hotel", origin: "Manila",
+      startAt: "2026-10-07T06:00:00Z", startTz: "Asia/Manila" });
+    const t = buildTimeline([local, manilaHotel]);
+    expect(t.days[0].entries.map((e) => e.item.id)).toEqual([manilaHotel.id, local.id]);
+  });
+
+  it("moves a domestic check-in after a same-zone flight into that city", () => {
+    const toGoa = item({ type: "flight", origin: "DEL", destination: "GOI", originCity: "New Delhi", destinationCity: "Goa",
+      startAt: "2026-10-07T08:00:00Z", startTz: "Asia/Kolkata", endAt: "2026-10-07T10:30:00Z", endTz: "Asia/Kolkata" });
+    const goaHotel = item({ type: "hotel_checkin", title: "Check in: Taj", origin: "Goa",
+      startAt: "2026-10-07T08:30:00Z", startTz: "Asia/Kolkata" });
+    const t = buildTimeline([goaHotel, toGoa]);
+    expect(t.days[0].entries.map((e) => e.item.id)).toEqual([toGoa.id, goaHotel.id]);
+  });
+});

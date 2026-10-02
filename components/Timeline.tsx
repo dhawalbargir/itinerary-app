@@ -39,7 +39,7 @@ export function Timeline({ timeline, readOnly, showCodes = true, newIds, onOpen,
               >
                 <span className="hidden sm:flex items-center text-muted cursor-grab" aria-hidden><GripVertical className="size-4" /></span>
                 <div className="flex-1">
-                  <ItemCard entry={{ item, startLocal: "", endLocal: null, endDayOffset: 0 }} onOpen={() => onOpen?.(item)} isNew={newIds?.has(item.id)} />
+                  <ItemCard entry={{ item, startLocal: "", endLocal: null, endDayOffset: 0, afterArrival: false }} onOpen={() => onOpen?.(item)} isNew={newIds?.has(item.id)} />
                 </div>
               </li>
             ))}
@@ -92,6 +92,7 @@ export function Timeline({ timeline, readOnly, showCodes = true, newIds, onOpen,
                   )}
                   <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] sm:grid-cols-[4.5rem_minmax(0,1fr)] gap-2 sm:gap-3">
                     <div className="pt-3 text-right">
+                      {e.item.type === "hotel_checkin" && <div className="text-[0.7rem] text-muted leading-none mb-1">from</div>}
                       <div className="wide text-lg font-bold leading-none">{e.startLocal}</div>
                       <div className="mt-1 text-[0.7rem] text-muted">{zoneAbbr(e.item.startAt!, e.item.startTz)}</div>
                     </div>

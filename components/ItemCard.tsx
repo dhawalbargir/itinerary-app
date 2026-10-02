@@ -12,6 +12,7 @@ export type CardEntry = {
   startLocal: string;
   endLocal: string | null;
   endDayOffset: number;
+  afterArrival?: boolean;
 };
 
 const low = (i: ItemDTO) =>
@@ -109,6 +110,7 @@ function PlainBody({ entry, showCodes }: { entry: CardEntry; showCodes: boolean 
           <div className="text-sm text-muted">
             {TYPE_LABEL[item.type] ?? item.type}
             {where ? `, ${where}` : ""}
+            {entry.afterArrival ? ", after you land" : ""}
             {entry.endLocal && (
               <>
                 {" "}until {entry.endLocal}
